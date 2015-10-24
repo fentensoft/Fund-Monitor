@@ -7,6 +7,8 @@
 	<link href="//cdn.bootcss.com/flat-ui/2.2.2/css/flat-ui.min.css" rel="stylesheet">
 	<link href="//cdn.bootcss.com/messenger/1.4.2/css/messenger.min.css" rel="stylesheet">
 	<link href="//cdn.bootcss.com/messenger/1.4.2/css/messenger-theme-flat.min.css" rel="stylesheet">
+	<link href="//cdn.bootcss.com/bootstrap-table/1.9.0/bootstrap-table.min.css" rel="stylesheet">
+
 </head>
 <body style="font-family:Microsoft YaHei; background-color: #1ABC9C;" ">
 	<div class="container">
@@ -35,6 +37,20 @@
 	</div>
 	<div class="container">
 		<div class="jumbotron">
+			<ul class="text-center">分级基金持仓股停牌一览表</ul>
+			<table id="fundtable">
+			    <thead>
+			    <tr>
+			        <th data-field="fund">母基金</th>
+			        <th data-field="stock">持仓中停牌股</th>
+			    </tr>
+			    </thead>
+			</table>
+		</div>
+	</div>
+	<div class="container">
+		<div class="jumbotron">
+			<ul class="text-center">分级基金短信监控设置</ul>
 			<form class="form-horizontal" role="form" id="regform" action="#">
 				<div class="form-group">
 					<label class="col-sm-2 control-label">最小成交额</label>
@@ -79,8 +95,12 @@
 	<script src="//cdn.bootcss.com/jquery/1.11.3/jquery.min.js"></script>
 	<script src="//cdn.bootcss.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 	<script src="//cdn.bootcss.com/messenger/1.4.2/js/messenger.min.js"></script>
+	<script src="//cdn.bootcss.com/bootbox.js/4.4.0/bootbox.min.js"></script>
+	<script src="//cdn.bootcss.com/bootstrap-table/1.9.0/bootstrap-table.min.js"></script>
+	<script src="//cdn.bootcss.com/bootstrap-table/1.9.0/locale/bootstrap-table-zh-CN.min.js"></script>
 	<script type="text/javascript">
 	$(document).ready(function() {
+		bootbox.setLocale("zh_CN");
 		$._messengerDefaults = {
 			extraClasses: 'messenger-fixed messenger-theme-flat messenger-on-bottom messenger-on-right'
 		}
@@ -92,10 +112,25 @@
 		$.get("config.do.php", "act=balance", function(response) {
 			$("#sms").html(response + "条");
 		});
+		$.getJSON("config.do.php", "act=getfundassethalt", function(data) {
+			$('#fundtable').bootstrapTable({
+        		data: data
+    		});
+    		console.log(data);
+		})
 		$("#smtbtn").click(function() {
-			$.post("config.do.php?act=setcfg", $("input[type=text]").serializeArray(), function(data) {
-				$.globalMessenger().post("修改成功！");
-			});
+			bootbox.prompt({
+					size: 'small',
+					inputType: "password",
+					title: "管理验证",
+    				message: "请输入管理密码", 
+    				callback: function(data) {
+    					console.log($("input[type=text]").serializeArray());
+						$.post("config.do.php?act=setcfg&pwd="+data, $("input[type=text]").serializeArray(), function(res) {
+							$.globalMessenger().post(res);
+						});
+					}
+				});
 			return false;
 		});
 		$("#testbtn").click(function() {
@@ -103,7 +138,7 @@
 			$("#testbtn").animate({opacity: "0.1"});
 			$.post("fund.php", "", function(data) {
 				$.globalMessenger().post({
-				message: "返回结果：<br/>" + data,
+				message: "返回结果："+ data,
 				hideAfter: 5
 				});
 				$("#testbtn").delay(500).animate({opacity: "1.0"}, "slow", function() {

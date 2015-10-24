@@ -20,8 +20,50 @@
 	        curl_setopt($ch, CURLOPT_URL, $url);
 	        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 	        $dom = curl_exec($ch);
+	        if(curl_errno($ch)) $dom = curl_error($ch);
 	        curl_close($ch);
 	        return $dom;
+	    }
+	    function curl_post($url, $data) {
+	    	$ch = curl_init();
+			curl_setopt($ch, CURLOPT_URL, $url);
+			curl_setopt($ch, CURLOPT_POST, 1);
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+			$dom = curl_exec($ch);
+			if(curl_errno($ch)) $dom = curl_error($ch);
+			curl_close($ch);
+			return $dom;
+	    }
+	    function getAllFunds() {
+	    	$content = $this->curl_get("http://www.jisilu.cn/data/sfnew/fundm_list/");
+	    	if ($content) {
+	    		$data = json_decode($content, true);
+	    		$result = array();
+	    		foreach($data["rows"] as $fund)
+	    			$result[] = array("id"=>$fund["cell"]["base_fund_id"], "name"=>$fund["cell"]["base_fund_nm"]);
+	    		return $result;
+	    	}
+	    }
+	    function getFundAsset($code, $n) {
+	    	$data = $this->curl_post("http://www.jisilu.cn/data/lof/detail_fund_stocks/" . $code, "is_search=1&rp=50&page=1&fund_id=" . $code);
+	    	if ($data) {
+	    		$data = json_decode($data, true);
+	    		if (count($data["rows"]) == 0)
+	    			return;
+	    		else {
+	    			$result = array();
+	    			if ($n > 10)
+	    				$n = 10;
+	    			for ($i = 0; $i < $n; $i++)
+	    				$result[] = array("id"=>$data["rows"][$i]["cell"]["asset_id"], "name"=>$data["rows"][$i]["cell"]["asset_nm"]);
+	    			return $result;
+	    		}
+	    	}
+	    }
+	    function isHalt($code) {
+	    	$stock = explode(",", $this->curl_get("http://hq.sinajs.cn/list=" . (($code[0]=="6") ? "sh" : "sz") . $code));
+    		return ($stock[1] == "0.00");
 	    }
 	    function readAllCfg() {
 	    	return $this->kv->pkrget("cfg_", 10);
@@ -64,8 +106,14 @@
 	    }
 	    function setCfg($arr) {
 	    	foreach ($arr as $key => $val) {
-	    		$this->kv->replace($key, $val);
+	    		$this->writeCfg($key, $val);
 	    	}
+		}
+		function writeCfg($key, $val) {
+			if (!$this->kv->replace($key, $val))
+				return $this->kv->set($key, $val);
+			else
+				return true;
 		}
     }  
 ?>
