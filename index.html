@@ -3,12 +3,12 @@
 <head>
 	<meta charset="UTF-8">
 	<title>分级基金套利监控</title>
+	<link rel="shortcut icon" href="/favicon.ico" />
 	<link href="//cdn.bootcss.com/bootstrap/3.3.5/css/bootstrap.min.css" rel="stylesheet">
 	<link href="//cdn.bootcss.com/flat-ui/2.2.2/css/flat-ui.min.css" rel="stylesheet">
 	<link href="//cdn.bootcss.com/messenger/1.4.2/css/messenger.min.css" rel="stylesheet">
 	<link href="//cdn.bootcss.com/messenger/1.4.2/css/messenger-theme-flat.min.css" rel="stylesheet">
 	<link href="//cdn.bootcss.com/bootstrap-table/1.9.0/bootstrap-table.min.css" rel="stylesheet">
-
 </head>
 <body style="font-family:Microsoft YaHei; background-color: #1ABC9C;" ">
 	<div class="container">
@@ -37,7 +37,9 @@
 	</div>
 	<div class="container">
 		<div class="jumbotron">
-			<ul class="text-center">分级基金持仓股停牌一览表</ul>
+			<h5 class="text-center">分级基金重仓股(占比>5%)停牌一览表</h5>
+			<h6 class="text-right" style="color: red;">红色的为三天内公告中有复牌字样</h6>
+			<div class="col-sm-3 col-sm-offset-9"><button class="btn btn btn-block btn-primary" id="refbtn">刷新公告数据（用时较久）</button></br></div>
 			<table id="fundtable">
 			    <thead>
 			    <tr>
@@ -50,7 +52,8 @@
 	</div>
 	<div class="container">
 		<div class="jumbotron">
-			<ul class="text-center">分级基金短信监控设置</ul>
+			<h5 class="text-center">分级基金短信监控设置</h5>
+			<br/>
 			<form class="form-horizontal" role="form" id="regform" action="#">
 				<div class="form-group">
 					<label class="col-sm-2 control-label">最小成交额</label>
@@ -76,6 +79,14 @@
 						<input type="text" class="form-control" name="cfg_qdiithrehigh"></div>
 				</div>
 				<div class="form-group">
+					<label class="col-sm-2 control-label">分级基金短信</label>
+					<div class="col-sm-2"><input type="checkbox" data-on="on" data-off="off" name="cfg_fundatoggle" /></div>
+					<label class="col-sm-2 control-label">QDII短信</label>
+					<div class="col-sm-2"><input type="checkbox" data-on="on" data-off="off" name="cfg_qdiitoggle" /></div>
+					<label class="col-sm-2 control-label">复牌短信</label>
+					<div class="col-sm-2"><input type="checkbox" data-on="on" data-off="off" name="cfg_resumetoggle" /></div>
+				</div>
+				<div class="form-group">
 					<div class="col-sm-4"></div>
 					<div class="col-sm-2">
 						<button type="submit" class="btn btn-large btn-block btn-primary" id="smtbtn">修改</button>
@@ -94,19 +105,37 @@
 	</div>
 	<script src="//cdn.bootcss.com/jquery/1.11.3/jquery.min.js"></script>
 	<script src="//cdn.bootcss.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+	<script src="//cdn.bootcss.com/flat-ui/2.2.2/js/flat-ui.min.js"></script>
 	<script src="//cdn.bootcss.com/messenger/1.4.2/js/messenger.min.js"></script>
 	<script src="//cdn.bootcss.com/bootbox.js/4.4.0/bootbox.min.js"></script>
 	<script src="//cdn.bootcss.com/bootstrap-table/1.9.0/bootstrap-table.min.js"></script>
-	<script src="//cdn.bootcss.com/bootstrap-table/1.9.0/locale/bootstrap-table-zh-CN.min.js"></script>
 	<script type="text/javascript">
+	var loadResume = function() {
+		$.getJSON("config.do.php", "act=getresume", function(resp) {
+			$.each(resp, function(i, valu) {
+				if (valu) 
+					$("a."+i).css('color','red');
+			});
+		})
+	}
+	var toggleS = function(tog, state) {
+		if (state!=$("input[name='" + tog + "']").bootstrapSwitch("state"))
+			$("input[name='" + tog + "']").bootstrapSwitch("toggleState");
+	}
 	$(document).ready(function() {
 		bootbox.setLocale("zh_CN");
+		$("input[name$='toggle']").bootstrapSwitch();
 		$._messengerDefaults = {
 			extraClasses: 'messenger-fixed messenger-theme-flat messenger-on-bottom messenger-on-right'
 		}
 		$.getJSON("config.do.php", "act=getcfg", function(response) {
 			$.each(response, function(i, valu) {
-				$("input[name='" + i + "']").val(valu);
+				var exp = /\w+(toggle\b)/ig; 
+				if(exp.exec(i)) {
+					toggleS(i, valu=="yes");
+				} else {
+					$("input[name='" + i + "']").val(valu);
+				}
 			});
 		});
 		$.get("config.do.php", "act=balance", function(response) {
@@ -114,10 +143,10 @@
 		});
 		$.getJSON("config.do.php", "act=getfundassethalt", function(data) {
 			$('#fundtable').bootstrapTable({
-        		data: data
+        		data: data,
+        		onLoadSuccess: loadResume()
     		});
-    		console.log(data);
-		})
+		});
 		$("#smtbtn").click(function() {
 			bootbox.prompt({
 					size: 'small',
@@ -125,9 +154,11 @@
 					title: "管理验证",
     				message: "请输入管理密码", 
     				callback: function(data) {
-    					console.log($("input[type=text]").serializeArray());
-						$.post("config.do.php?act=setcfg&pwd="+data, $("input[type=text]").serializeArray(), function(res) {
-							$.globalMessenger().post(res);
+						$.post("config.do.php?act=setcfg&pwd="+data, $("input[type=text]").serialize() + "&cfg_fundatoggle=" + ($("input[name='cfg_fundatoggle']").bootstrapSwitch("state") ? "yes" : "no") + "&cfg_qdiitoggle=" + ($("input[name='cfg_qdiitoggle']").bootstrapSwitch("state") ? "yes" : "no") + "&cfg_resumetoggle=" + ($("input[name='cfg_resumetoggle']").bootstrapSwitch("state") ? "yes" : "no"), function(res) {
+							$.globalMessenger().post({
+								message: "返回结果："+ res,
+								hideAfter: 5
+								});
 						});
 					}
 				});
@@ -135,19 +166,40 @@
 		});
 		$("#testbtn").click(function() {
 			$("#testbtn").text("测试中");
-			$("#testbtn").animate({opacity: "0.1"});
+			$("#testbtn").attr("disabled", true);
 			$.post("fund.php", "", function(data) {
 				$.globalMessenger().post({
 				message: "返回结果："+ data,
 				hideAfter: 5
 				});
-				$("#testbtn").delay(500).animate({opacity: "1.0"}, "slow", function() {
-					$("#testbtn").text("测试");
-				});
+				$("#testbtn").delay(500).attr("disabled", false);
+				$("#testbtn").text("测试");
 			});
 			return false;
 		});
+		$("#refbtn").click(function () {
+			$("#refbtn").text("刷新中");
+			$("#refbtn").attr("disabled", true);
+			$("a.stock").removeAttr("style");
+			$.get("config.do.php", "act=updatadisclosure", function(data) {
+				$.globalMessenger().post({
+								message: "返回结果："+ data,
+								hideAfter: 5
+								});
+				loadResume();
+				$("#refbtn").delay(500).attr("disabled", false);
+				$("#refbtn").text("刷新公告数据（用时较久）");
+			});
+			return false;
+		})
 	});
+	var _hmt = _hmt || [];
+	(function() {
+	  var hm = document.createElement("script");
+	  hm.src = "//hm.baidu.com/hm.js?b676ec1b7bc6e6cdf010b4a22b39c966";
+	  var s = document.getElementsByTagName("script")[0]; 
+	  s.parentNode.insertBefore(hm, s);
+	})();
 	</script>
 </body>
 </html>
